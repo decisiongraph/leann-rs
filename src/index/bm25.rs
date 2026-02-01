@@ -1,17 +1,23 @@
 //! BM25 scoring for hybrid search
 
-use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use regex::Regex;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// BM25 parameters
 const K1: f32 = 1.2;
 const B: f32 = 0.75;
 
+/// Cached regex for tokenization (compiled once)
+static TOKEN_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[a-zA-Z0-9]+").unwrap()
+});
+
 /// Simple BM25 scorer
 pub struct Bm25Scorer {
     /// Document frequency: term -> number of documents containing term
-    doc_freq: HashMap<String, usize>,
+    doc_freq: FxHashMap<String, usize>,
     /// Total number of documents
     num_docs: usize,
     /// Average document length
@@ -19,14 +25,14 @@ pub struct Bm25Scorer {
     /// Document lengths
     doc_lengths: Vec<usize>,
     /// Term frequencies per document: doc_id -> (term -> count)
-    term_freqs: Vec<HashMap<String, usize>>,
+    term_freqs: Vec<FxHashMap<String, usize>>,
 }
 
 impl Bm25Scorer {
     /// Build a BM25 scorer from documents
     pub fn build(documents: &[String]) -> Self {
         let num_docs = documents.len();
-        let mut doc_freq: HashMap<String, usize> = HashMap::new();
+        let mut doc_freq: FxHashMap<String, usize> = FxHashMap::default();
         let mut doc_lengths = Vec::with_capacity(num_docs);
         let mut term_freqs = Vec::with_capacity(num_docs);
         let mut total_len = 0usize;
@@ -37,8 +43,8 @@ impl Bm25Scorer {
             doc_lengths.push(doc_len);
             total_len += doc_len;
 
-            let mut tf: HashMap<String, usize> = HashMap::new();
-            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut tf: FxHashMap<String, usize> = FxHashMap::default();
+            let mut seen: FxHashSet<String> = FxHashSet::default();
 
             for token in tokens {
                 *tf.entry(token.clone()).or_insert(0) += 1;
@@ -117,9 +123,9 @@ impl Bm25Scorer {
 }
 
 /// Simple tokenization: lowercase, split on non-alphanumeric
+/// Uses cached regex for performance
 fn tokenize(text: &str) -> Vec<String> {
-    let re = Regex::new(r"[a-zA-Z0-9]+").unwrap();
-    re.find_iter(text)
+    TOKEN_REGEX.find_iter(text)
         .map(|m| m.as_str().to_lowercase())
         .filter(|s| s.len() > 1) // Skip single-character tokens
         .collect()

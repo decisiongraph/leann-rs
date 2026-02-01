@@ -103,6 +103,10 @@ pub struct BuildArgs {
     /// - auto: automatically selects based on file type
     #[arg(long, default_value = "auto", value_parser = ["simple", "ast", "auto"])]
     pub chunking_strategy: String,
+
+    /// Batch size for embedding API calls (default: provider-specific)
+    #[arg(long)]
+    pub embedding_batch_size: Option<usize>,
 }
 
 pub async fn run(args: BuildArgs, _verbose: bool) -> anyhow::Result<()> {
@@ -215,7 +219,13 @@ pub async fn run(args: BuildArgs, _verbose: bool) -> anyhow::Result<()> {
     progress.set_message("Computing embeddings...");
 
     // Process chunks in batches for efficiency
-    let batch_size = 100;
+    // Default batch sizes: OpenAI/Gemini=100, Ollama=32
+    let batch_size = args.embedding_batch_size.unwrap_or_else(|| {
+        match args.embedding_mode.as_str() {
+            "ollama" => 32,
+            _ => 100,
+        }
+    });
     let mut all_embeddings = Vec::with_capacity(chunks.len());
     let embed_template = args.embedding_prompt_template.as_deref().unwrap_or("");
 

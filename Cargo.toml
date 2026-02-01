@@ -71,6 +71,9 @@ rustyline = "14"
 # Regex for text processing
 regex = "1"
 
+# Fast hash functions
+rustc-hash = "2"
+
 # HTTP server
 axum = { version = "0.7", optional = true }
 tower = { version = "0.4", optional = true }
@@ -102,6 +105,14 @@ server = ["axum", "tower", "tower-http"]
 mcp = ["rmcp"]
 full = ["diskann-backend", "local-embeddings", "pdf", "server", "mcp"]
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+regex = "1"
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
 [profile.release]
 lto = true
 codegen-units = 1
@@ -111,3 +122,6 @@ opt-level = "z"  # Optimize for size
 [profile.release-fast]
 inherits = "release"
 opt-level = 3    # Optimize for speed instead of size
+
+[profile.bench]
+inherits = "release-fast"
