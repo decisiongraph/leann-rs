@@ -5,7 +5,7 @@ edition = "2021"
 description = "Lightweight vector database for RAG - single binary CLI"
 license = "MIT"
 authors = ["LEANN Contributors"]
-repository = "https://github.com/leann-project/leann"
+repository = "https://github.com/decisiongraph/leann-rs"
 keywords = ["vector-database", "rag", "embedding", "search", "ai"]
 categories = ["command-line-utilities", "database-implementations"]
 

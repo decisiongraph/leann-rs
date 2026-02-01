@@ -1,8 +1,8 @@
 # LEANN-RS
 
-Rust implementation of LEANN - Lightweight Embedding-based Approximate Nearest Neighbor search.
+> **"Rewrite it in Rust"** version of [LEANN](https://github.com/leann-project/leann) - Lightweight Embedding-based Approximate Nearest Neighbor search.
 
-A single-binary CLI for building, searching, and querying vector indexes for RAG applications.
+A single-binary CLI for building, searching, and querying vector indexes for RAG applications. No Python runtime required.
 
 ## Features
 
