@@ -168,15 +168,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tokenize() {
+    fn test_tokenize_basic() {
         let tokens = tokenize("Hello, World! This is a test.");
         assert!(tokens.contains(&"hello".to_string()));
         assert!(tokens.contains(&"world".to_string()));
         assert!(tokens.contains(&"test".to_string()));
+        // Single chars should be filtered out
+        assert!(!tokens.contains(&"a".to_string()));
     }
 
     #[test]
-    fn test_bm25_scorer() {
+    fn test_tokenize_empty() {
+        let tokens = tokenize("");
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn test_tokenize_numbers() {
+        let tokens = tokenize("test123 456abc");
+        assert!(tokens.contains(&"test123".to_string()));
+        assert!(tokens.contains(&"456abc".to_string()));
+    }
+
+    #[test]
+    fn test_bm25_basic_scoring() {
         let docs = vec![
             "the quick brown fox jumps over the lazy dog".to_string(),
             "a quick brown dog outpaces a swift fox".to_string(),
@@ -188,5 +203,122 @@ mod tests {
 
         assert!(!results.is_empty());
         // First two docs should score higher (both have "quick" and "fox")
+        assert!(results.len() <= 3);
+    }
+
+    #[test]
+    fn test_bm25_term_frequency_matters() {
+        let docs = vec![
+            "rust rust rust programming".to_string(),  // 3x "rust"
+            "rust programming".to_string(),            // 1x "rust"
+        ];
+
+        let scorer = Bm25Scorer::build(&docs);
+        let scores = scorer.score_query("rust");
+
+        // Doc with more "rust" should score higher
+        assert!(scores[0] > scores[1]);
+    }
+
+    #[test]
+    fn test_bm25_idf_matters() {
+        let docs = vec![
+            "common rare".to_string(),
+            "common".to_string(),
+            "common".to_string(),
+        ];
+
+        let scorer = Bm25Scorer::build(&docs);
+        let scores = scorer.score_query("rare");
+
+        // Only first doc has "rare", so only it should score
+        assert!(scores[0] > 0.0);
+        assert_eq!(scores[1], 0.0);
+        assert_eq!(scores[2], 0.0);
+    }
+
+    #[test]
+    fn test_bm25_empty_query() {
+        let docs = vec!["hello world".to_string()];
+        let scorer = Bm25Scorer::build(&docs);
+        let scores = scorer.score_query("");
+
+        assert_eq!(scores[0], 0.0);
+    }
+
+    #[test]
+    fn test_bm25_no_match() {
+        let docs = vec!["hello world".to_string()];
+        let scorer = Bm25Scorer::build(&docs);
+        let results = scorer.search("xyz", 5);
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_bm25_search_top_k() {
+        let docs = vec![
+            "apple banana".to_string(),
+            "apple cherry".to_string(),
+            "banana cherry".to_string(),
+            "apple apple apple".to_string(),
+        ];
+
+        let scorer = Bm25Scorer::build(&docs);
+        let results = scorer.search("apple", 2);
+
+        // Should return only top 2
+        assert_eq!(results.len(), 2);
+        // Doc 3 (apple apple apple) should be first
+        assert_eq!(results[0].0, 3);
+    }
+
+    #[test]
+    fn test_hybrid_rerank_basic() {
+        let vector_results = vec![
+            (0, 0.9),
+            (1, 0.8),
+            (2, 0.7),
+        ];
+        let bm25_scores = vec![0.5, 0.9, 0.3];
+
+        // Equal weight (alpha = 0.5)
+        let results = hybrid_rerank(&vector_results, &bm25_scores, 0.5);
+
+        assert_eq!(results.len(), 3);
+        // All scores should be in [0, 1] range after normalization
+        for (_, score) in &results {
+            assert!(*score >= 0.0 && *score <= 1.0);
+        }
+    }
+
+    #[test]
+    fn test_hybrid_rerank_vector_only() {
+        let vector_results = vec![
+            (0, 0.9),
+            (1, 0.5),
+        ];
+        let bm25_scores = vec![0.1, 0.9];
+
+        // alpha = 1.0 means vector only
+        let results = hybrid_rerank(&vector_results, &bm25_scores, 1.0);
+
+        // Doc 0 should be first (highest vector score)
+        assert_eq!(results[0].0, 0);
+    }
+
+    #[test]
+    fn test_hybrid_rerank_bm25_only() {
+        let vector_results = vec![
+            (0, 0.9),
+            (1, 0.5),
+        ];
+        let bm25_scores = vec![0.1, 0.9];
+
+        // alpha = 0.0 means BM25 only
+        let results = hybrid_rerank(&vector_results, &bm25_scores, 0.0);
+
+        // Doc 1 should be first (highest BM25 score)
+        assert_eq!(results[0].0, 1);
     }
 }

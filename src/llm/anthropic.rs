@@ -6,6 +6,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::http::{check_response, create_client};
+
 /// Anthropic LLM provider
 pub struct AnthropicLlm {
     client: Client,
@@ -54,7 +56,7 @@ impl AnthropicLlm {
             .or_else(|| env::var("ANTHROPIC_BASE_URL").ok())
             .unwrap_or_else(|| "https://api.anthropic.com".to_string());
 
-        let client = Client::new();
+        let client = create_client();
 
         info!("Anthropic LLM provider: {}", model_name);
 
@@ -87,12 +89,7 @@ impl AnthropicLlm {
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Anthropic API error {}: {}", status, body);
-        }
-
+        let response = check_response(response, "Anthropic").await?;
         let anthropic_response: AnthropicResponse = response.json().await?;
 
         let content = anthropic_response

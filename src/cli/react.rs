@@ -1,12 +1,10 @@
 //! ReAct agent command - multi-turn reasoning with tools
 
-use std::path::PathBuf;
-
 use clap::Args;
 use tracing::info;
 
 use crate::embedding::{EmbeddingMode, EmbeddingProvider};
-use crate::index::{IndexMeta, IndexSearcher};
+use crate::index::{find_index, IndexMeta, IndexSearcher};
 use crate::llm::{LlmProvider, LlmType};
 
 #[derive(Args)]
@@ -322,26 +320,3 @@ pub async fn run(args: ReactArgs, _verbose: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn find_index(name: &str) -> anyhow::Result<PathBuf> {
-    let local_path = PathBuf::from(".leann").join("indexes").join(name);
-    if local_path.exists() {
-        return Ok(local_path);
-    }
-
-    let abs_path = PathBuf::from(name);
-    if abs_path.is_absolute() && abs_path.exists() {
-        return Ok(abs_path);
-    }
-
-    if let Some(home) = dirs::home_dir() {
-        let global_path = home.join(".leann").join("indexes").join(name);
-        if global_path.exists() {
-            return Ok(global_path);
-        }
-    }
-
-    anyhow::bail!(
-        "Index '{}' not found. Run 'leann list' to see available indexes.",
-        name
-    )
-}

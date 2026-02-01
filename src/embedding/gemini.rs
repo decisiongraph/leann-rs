@@ -6,6 +6,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::http::create_client;
+
 /// Gemini embedding provider
 pub struct GeminiEmbedding {
     client: Client,
@@ -64,7 +66,7 @@ impl GeminiEmbedding {
             .or_else(|| env::var("GEMINI_API_KEY").ok())
             .ok_or_else(|| anyhow::anyhow!("GOOGLE_API_KEY or GEMINI_API_KEY not set"))?;
 
-        let client = Client::new();
+        let client = create_client();
 
         // Gemini embedding dimensions
         let dimensions = match model_name.as_str() {

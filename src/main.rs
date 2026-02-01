@@ -4,6 +4,7 @@
 
 mod chunker;
 mod cli;
+mod http;
 mod index;
 mod backend;
 mod embedding;

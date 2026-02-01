@@ -3,13 +3,9 @@
 mod openai;
 mod ollama;
 mod gemini;
-mod traits;
-mod truncate;
 
 #[cfg(feature = "local-embeddings")]
 mod candle;
-
-pub use traits::EmbeddingProviderTrait;
 
 use tracing::info;
 
@@ -145,10 +141,14 @@ impl EmbeddingProvider {
 }
 
 /// Common prompt templates for asymmetric embedding models
+///
+/// These templates are used with the `--embedding-prompt-template` and
+/// `--query-prompt-template` CLI options for models like E5, BGE, and Instructor.
+#[allow(dead_code)]
 pub mod templates {
-    /// E5 model query prefix
+    /// E5 model query prefix (use with --query-prompt-template)
     pub const E5_QUERY: &str = "query: ";
-    /// E5 model passage prefix
+    /// E5 model passage prefix (use with --embedding-prompt-template)
     pub const E5_PASSAGE: &str = "passage: ";
 
     /// BGE model query prefix

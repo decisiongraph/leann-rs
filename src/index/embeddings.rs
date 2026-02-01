@@ -44,6 +44,13 @@ impl EmbeddingsStore {
     }
 
     /// Get embedding for a specific index
+    ///
+    /// # Safety
+    /// This method uses unsafe code to reinterpret bytes as f32 values.
+    /// Safety is guaranteed because:
+    /// 1. The file was written by `EmbeddingsWriter::add()` which writes f32 values
+    /// 2. We verify alignment before creating the slice
+    /// 3. Bounds are checked before access
     pub fn get(&self, idx: usize) -> Option<&[f32]> {
         if idx >= self.count {
             return None;
@@ -57,10 +64,19 @@ impl EmbeddingsStore {
             return None;
         }
 
-        // Safety: We're reading f32 values that were written as f32
         let slice = &self.mmap[start..end];
-        let ptr = slice.as_ptr() as *const f32;
-        Some(unsafe { std::slice::from_raw_parts(ptr, self.dimensions) })
+        let ptr = slice.as_ptr();
+
+        // Safety check: Verify alignment for f32 (4-byte alignment required)
+        if (ptr as usize) % std::mem::align_of::<f32>() != 0 {
+            // Alignment mismatch - this shouldn't happen with properly written files
+            // but we handle it gracefully by returning None
+            return None;
+        }
+
+        // Safety: We've verified bounds and alignment, and the data was written as f32
+        let f32_ptr = ptr as *const f32;
+        Some(unsafe { std::slice::from_raw_parts(f32_ptr, self.dimensions) })
     }
 
     /// Get all embeddings as a vector of slices
@@ -100,6 +116,13 @@ impl EmbeddingsWriter {
     }
 
     /// Add an embedding
+    ///
+    /// # Safety
+    /// This method uses unsafe code to reinterpret f32 slice as bytes.
+    /// Safety is guaranteed because:
+    /// 1. f32 has no padding bytes (IEEE 754 guarantees contiguous representation)
+    /// 2. The slice length is calculated correctly from f32 count
+    /// 3. The pointer is valid for the lifetime of the embedding slice
     pub fn add(&mut self, embedding: &[f32]) -> anyhow::Result<()> {
         if embedding.len() != self.dimensions {
             anyhow::bail!(
@@ -109,7 +132,8 @@ impl EmbeddingsWriter {
             );
         }
 
-        // Write embedding as raw bytes
+        // Safety: f32 is repr(C) compatible and has no padding bytes.
+        // We're converting a valid f32 slice to its byte representation.
         let bytes = unsafe {
             std::slice::from_raw_parts(
                 embedding.as_ptr() as *const u8,

@@ -9,7 +9,7 @@ use tracing::info;
 use crate::backend::{BackendBuilder, BackendType};
 use crate::chunker::{Chunk, ChunkingStrategy};
 use crate::embedding::{EmbeddingMode, EmbeddingProvider};
-use crate::index::{IndexMeta, PassageStore, Passage};
+use crate::index::{find_index, IndexMeta, PassageStore, Passage};
 
 use super::build::load_documents;
 
@@ -239,29 +239,4 @@ pub async fn run(args: UpdateArgs, _verbose: bool) -> anyhow::Result<()> {
     );
 
     Ok(())
-}
-
-/// Find an index by name
-fn find_index(name: &str) -> anyhow::Result<PathBuf> {
-    let local_path = PathBuf::from(".leann").join("indexes").join(name);
-    if local_path.exists() {
-        return Ok(local_path);
-    }
-
-    let abs_path = PathBuf::from(name);
-    if abs_path.is_absolute() && abs_path.exists() {
-        return Ok(abs_path);
-    }
-
-    if let Some(home) = dirs::home_dir() {
-        let global_path = home.join(".leann").join("indexes").join(name);
-        if global_path.exists() {
-            return Ok(global_path);
-        }
-    }
-
-    anyhow::bail!(
-        "Index '{}' not found. Run 'leann list' to see available indexes.",
-        name
-    )
 }

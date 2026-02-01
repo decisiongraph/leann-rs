@@ -1,12 +1,10 @@
 //! Search command - query an index
 
-use std::path::PathBuf;
-
 use clap::Args;
 use tracing::info;
 
 use crate::embedding::{EmbeddingMode, EmbeddingProvider};
-use crate::index::{IndexMeta, IndexSearcher, MetadataFilter, RecomputeSearcher, SearchOptions, SearchResult};
+use crate::index::{find_index, IndexMeta, IndexSearcher, MetadataFilter, RecomputeSearcher, SearchOptions, SearchResult};
 
 #[derive(Args)]
 pub struct SearchArgs {
@@ -196,30 +194,3 @@ pub async fn run(args: SearchArgs, _verbose: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Find an index by name in the current project or global registry
-fn find_index(name: &str) -> anyhow::Result<PathBuf> {
-    // First, check current project's .leann directory
-    let local_path = PathBuf::from(".leann").join("indexes").join(name);
-    if local_path.exists() {
-        return Ok(local_path);
-    }
-
-    // Check if it's an absolute path
-    let abs_path = PathBuf::from(name);
-    if abs_path.is_absolute() && abs_path.exists() {
-        return Ok(abs_path);
-    }
-
-    // Check home directory global registry
-    if let Some(home) = dirs::home_dir() {
-        let global_path = home.join(".leann").join("indexes").join(name);
-        if global_path.exists() {
-            return Ok(global_path);
-        }
-    }
-
-    anyhow::bail!(
-        "Index '{}' not found. Run 'leann list' to see available indexes.",
-        name
-    )
-}

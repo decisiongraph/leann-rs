@@ -6,6 +6,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::http::{check_response, create_client};
+
 /// Ollama LLM provider
 pub struct OllamaLlm {
     client: Client,
@@ -34,7 +36,7 @@ impl OllamaLlm {
             .or_else(|| env::var("OLLAMA_HOST").ok())
             .unwrap_or_else(|| "http://localhost:11434".to_string());
 
-        let client = Client::new();
+        let client = create_client();
 
         info!("Ollama LLM provider: {} @ {}", model_name, host);
 
@@ -60,12 +62,7 @@ impl OllamaLlm {
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Ollama API error {}: {}", status, body);
-        }
-
+        let response = check_response(response, "Ollama").await?;
         let text = response.text().await?;
 
         // Parse streaming-style response (multiple JSON objects)

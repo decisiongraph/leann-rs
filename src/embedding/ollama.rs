@@ -6,6 +6,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::http::{check_response, create_client};
+
 /// Ollama embedding provider
 pub struct OllamaEmbedding {
     client: Client,
@@ -25,16 +27,6 @@ struct EmbedResponse {
     embeddings: Vec<Vec<f32>>,
 }
 
-#[derive(Deserialize)]
-struct ModelInfoResponse {
-    model_info: Option<ModelInfo>,
-}
-
-#[derive(Deserialize)]
-struct ModelInfo {
-    #[serde(flatten)]
-    info: std::collections::HashMap<String, serde_json::Value>,
-}
 
 impl OllamaEmbedding {
     /// Create a new Ollama embedding provider
@@ -44,7 +36,7 @@ impl OllamaEmbedding {
             .or_else(|| env::var("OLLAMA_HOST").ok())
             .unwrap_or_else(|| "http://localhost:11434".to_string());
 
-        let client = Client::new();
+        let client = create_client();
 
         // Default dimensions for common embedding models
         let dimensions = match model_name.split(':').next().unwrap_or(&model_name) {
@@ -99,12 +91,7 @@ impl OllamaEmbedding {
                 .send()
                 .await?;
 
-            if !response.status().is_success() {
-                let status = response.status();
-                let body = response.text().await.unwrap_or_default();
-                anyhow::bail!("Ollama API error {}: {}", status, body);
-            }
-
+            let response = check_response(response, "Ollama").await?;
             let embed_response: EmbedResponse = response.json().await?;
             all_embeddings.extend(embed_response.embeddings);
         }

@@ -1,10 +1,6 @@
 //! Serve command - HTTP API server
 
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use clap::Args;
-use tracing::info;
 
 #[derive(Args)]
 pub struct ServeArgs {
@@ -34,19 +30,18 @@ pub struct ServeArgs {
 
 #[cfg(feature = "server")]
 pub async fn run(args: ServeArgs, _verbose: bool) -> anyhow::Result<()> {
+    use std::sync::Arc;
+
     use axum::{
-        extract::{Query, State},
-        http::StatusCode,
-        response::Json,
         routing::{get, post},
         Router,
     };
-    use serde::{Deserialize, Serialize};
     use tower_http::cors::{Any, CorsLayer};
     use tokio::sync::RwLock;
+    use tracing::info;
 
     use crate::embedding::{EmbeddingMode, EmbeddingProvider};
-    use crate::index::{IndexMeta, IndexSearcher, MetadataFilter, SearchOptions};
+    use crate::index::{find_index, IndexMeta, IndexSearcher};
 
     // Find and load index
     let index_dir = find_index(&args.index_name)?;
@@ -160,6 +155,8 @@ struct IndexInfo {
 
 #[cfg(feature = "server")]
 async fn list_indexes() -> axum::response::Json<Vec<IndexInfo>> {
+    use std::path::PathBuf;
+
     let mut indexes = Vec::new();
 
     // Check local .leann/indexes
@@ -206,7 +203,7 @@ async fn list_indexes() -> axum::response::Json<Vec<IndexInfo>> {
 }
 
 #[cfg(feature = "server")]
-fn dir_size(path: &PathBuf) -> std::io::Result<u64> {
+fn dir_size(path: &std::path::PathBuf) -> std::io::Result<u64> {
     let mut size = 0;
     if path.is_dir() {
         for entry in std::fs::read_dir(path)? {
@@ -316,28 +313,4 @@ async fn search(
 #[cfg(not(feature = "server"))]
 pub async fn run(_args: ServeArgs, _verbose: bool) -> anyhow::Result<()> {
     anyhow::bail!("Server feature not enabled. Rebuild with --features server")
-}
-
-fn find_index(name: &str) -> anyhow::Result<PathBuf> {
-    let local_path = PathBuf::from(".leann").join("indexes").join(name);
-    if local_path.exists() {
-        return Ok(local_path);
-    }
-
-    let abs_path = PathBuf::from(name);
-    if abs_path.is_absolute() && abs_path.exists() {
-        return Ok(abs_path);
-    }
-
-    if let Some(home) = dirs::home_dir() {
-        let global_path = home.join(".leann").join("indexes").join(name);
-        if global_path.exists() {
-            return Ok(global_path);
-        }
-    }
-
-    anyhow::bail!(
-        "Index '{}' not found. Run 'leann list' to see available indexes.",
-        name
-    )
 }
