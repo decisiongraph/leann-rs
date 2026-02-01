@@ -3,6 +3,7 @@
 mod ollama;
 mod openai;
 mod anthropic;
+mod simulated;
 
 use tracing::info;
 
@@ -12,6 +13,7 @@ pub enum LlmType {
     Ollama { host: Option<String> },
     OpenAI { api_key: Option<String>, base_url: Option<String> },
     Anthropic { api_key: Option<String>, base_url: Option<String> },
+    Simulated,
 }
 
 /// Unified LLM provider
@@ -24,6 +26,7 @@ enum LlmProviderInner {
     Ollama(ollama::OllamaLlm),
     OpenAI(openai::OpenAILlm),
     Anthropic(anthropic::AnthropicLlm),
+    Simulated(simulated::SimulatedLlm),
 }
 
 impl LlmProvider {
@@ -39,6 +42,9 @@ impl LlmProvider {
             LlmType::Anthropic { api_key, base_url } => {
                 LlmProviderInner::Anthropic(anthropic::AnthropicLlm::new(model_name.clone(), api_key, base_url)?)
             }
+            LlmType::Simulated => {
+                LlmProviderInner::Simulated(simulated::SimulatedLlm::new(model_name.clone())?)
+            }
         };
 
         info!("Initialized LLM provider: {}", model_name);
@@ -52,6 +58,7 @@ impl LlmProvider {
             LlmProviderInner::Ollama(llm) => llm.generate(prompt).await,
             LlmProviderInner::OpenAI(llm) => llm.generate(prompt).await,
             LlmProviderInner::Anthropic(llm) => llm.generate(prompt).await,
+            LlmProviderInner::Simulated(llm) => llm.generate(prompt).await,
         }
     }
 

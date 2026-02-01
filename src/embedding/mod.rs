@@ -2,6 +2,7 @@
 
 mod openai;
 mod ollama;
+mod gemini;
 mod traits;
 mod truncate;
 
@@ -22,6 +23,9 @@ pub enum EmbeddingMode {
     Ollama {
         host: Option<String>,
     },
+    Gemini {
+        api_key: Option<String>,
+    },
     #[cfg(feature = "local-embeddings")]
     Local {
         model_path: Option<String>,
@@ -38,6 +42,7 @@ pub struct EmbeddingProvider {
 enum EmbeddingProviderInner {
     OpenAI(openai::OpenAIEmbedding),
     Ollama(ollama::OllamaEmbedding),
+    Gemini(gemini::GeminiEmbedding),
     #[cfg(feature = "local-embeddings")]
     Local(candle::CandleEmbedding),
 }
@@ -62,6 +67,14 @@ impl EmbeddingProvider {
                 )?;
                 let dims = provider.dimensions();
                 (EmbeddingProviderInner::Ollama(provider), dims)
+            }
+            EmbeddingMode::Gemini { api_key } => {
+                let provider = gemini::GeminiEmbedding::new(
+                    model_name.clone(),
+                    api_key,
+                )?;
+                let dims = provider.dimensions();
+                (EmbeddingProviderInner::Gemini(provider), dims)
             }
             #[cfg(feature = "local-embeddings")]
             EmbeddingMode::Local { model_path } => {
@@ -101,8 +114,48 @@ impl EmbeddingProvider {
         match &self.inner {
             EmbeddingProviderInner::OpenAI(p) => p.embed(texts).await,
             EmbeddingProviderInner::Ollama(p) => p.embed(texts).await,
+            EmbeddingProviderInner::Gemini(p) => p.embed(texts).await,
             #[cfg(feature = "local-embeddings")]
             EmbeddingProviderInner::Local(p) => p.embed(texts),
         }
     }
+
+    /// Compute embeddings with a prompt template prefix
+    ///
+    /// Useful for asymmetric embedding models like E5, BGE, or Instructor
+    /// that expect prefixes like "query: " or "passage: "
+    pub async fn embed_with_template(
+        &self,
+        texts: &[&str],
+        template: &str,
+    ) -> anyhow::Result<Vec<Vec<f32>>> {
+        if template.is_empty() {
+            return self.embed(texts).await;
+        }
+
+        // Apply template prefix to all texts
+        let templated: Vec<String> = texts
+            .iter()
+            .map(|t| format!("{}{}", template, t))
+            .collect();
+
+        let refs: Vec<&str> = templated.iter().map(|s| s.as_str()).collect();
+        self.embed(&refs).await
+    }
+}
+
+/// Common prompt templates for asymmetric embedding models
+pub mod templates {
+    /// E5 model query prefix
+    pub const E5_QUERY: &str = "query: ";
+    /// E5 model passage prefix
+    pub const E5_PASSAGE: &str = "passage: ";
+
+    /// BGE model query prefix
+    pub const BGE_QUERY: &str = "Represent this sentence for searching relevant passages: ";
+
+    /// Instructor model query prefix
+    pub const INSTRUCTOR_QUERY: &str = "Represent the question for retrieving evidence: ";
+    /// Instructor model passage prefix
+    pub const INSTRUCTOR_PASSAGE: &str = "Represent the document for retrieval: ";
 }

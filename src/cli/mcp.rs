@@ -161,6 +161,9 @@ impl LeannMcpServer {
             "ollama" => EmbeddingMode::Ollama {
                 host: self.embedding_host.clone(),
             },
+            "gemini" => EmbeddingMode::Gemini {
+                api_key: std::env::var("GOOGLE_API_KEY").ok(),
+            },
             _ => anyhow::bail!("Unknown embedding mode: {}", meta.embedding_mode),
         };
 

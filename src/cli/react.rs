@@ -18,7 +18,7 @@ pub struct ReactArgs {
     pub query: String,
 
     /// LLM provider
-    #[arg(long, default_value = "ollama", value_parser = ["ollama", "openai", "anthropic"])]
+    #[arg(long, default_value = "ollama", value_parser = ["ollama", "openai", "anthropic", "simulated"])]
     pub llm: String,
 
     /// LLM model name
@@ -269,6 +269,9 @@ pub async fn run(args: ReactArgs, _verbose: bool) -> anyhow::Result<()> {
         "ollama" => EmbeddingMode::Ollama {
             host: args.embedding_host.clone(),
         },
+        "gemini" => EmbeddingMode::Gemini {
+            api_key: std::env::var("GOOGLE_API_KEY").ok(),
+        },
         _ => anyhow::bail!("Unknown embedding mode: {}", meta.embedding_mode),
     };
 
@@ -293,6 +296,7 @@ pub async fn run(args: ReactArgs, _verbose: bool) -> anyhow::Result<()> {
             api_key: args.api_key.clone(),
             base_url: args.api_base.clone(),
         },
+        "simulated" => LlmType::Simulated,
         _ => anyhow::bail!("Unknown LLM provider: {}", args.llm),
     };
 

@@ -55,6 +55,11 @@ pub struct SearchArgs {
     /// Ollama host for embeddings
     #[arg(long, env = "OLLAMA_HOST")]
     pub embedding_host: Option<String>,
+
+    /// Query prompt template prefix for asymmetric embedding models
+    /// (e.g., "query: " for E5 models, or custom prefix for Instructor models)
+    #[arg(long)]
+    pub query_prompt_template: Option<String>,
 }
 
 pub async fn run(args: SearchArgs, _verbose: bool) -> anyhow::Result<()> {
@@ -84,6 +89,9 @@ pub async fn run(args: SearchArgs, _verbose: bool) -> anyhow::Result<()> {
         "ollama" => EmbeddingMode::Ollama {
             host: args.embedding_host.clone(),
         },
+        "gemini" => EmbeddingMode::Gemini {
+            api_key: std::env::var("GOOGLE_API_KEY").ok(),
+        },
         _ => anyhow::bail!("Unknown embedding mode in index: {}", meta.embedding_mode),
     };
 
@@ -92,8 +100,11 @@ pub async fn run(args: SearchArgs, _verbose: bool) -> anyhow::Result<()> {
         embedding_mode,
     ).await?;
 
-    // Compute query embedding
-    let query_embedding = embedding_provider.embed(&[&args.query]).await?;
+    // Compute query embedding (with optional template for asymmetric models)
+    let query_template = args.query_prompt_template.as_deref().unwrap_or("");
+    let query_embedding = embedding_provider
+        .embed_with_template(&[&args.query], query_template)
+        .await?;
     let query_embedding = &query_embedding[0];
 
     // Parse filter

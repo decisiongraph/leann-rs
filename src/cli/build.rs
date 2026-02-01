@@ -31,12 +31,12 @@ pub struct BuildArgs {
 
     /// Embedding mode
     #[cfg(feature = "local-embeddings")]
-    #[arg(long, default_value = "openai", value_parser = ["openai", "ollama", "local"])]
+    #[arg(long, default_value = "openai", value_parser = ["openai", "ollama", "gemini", "local"])]
     pub embedding_mode: String,
 
     /// Embedding mode
     #[cfg(not(feature = "local-embeddings"))]
-    #[arg(long, default_value = "openai", value_parser = ["openai", "ollama"])]
+    #[arg(long, default_value = "openai", value_parser = ["openai", "ollama", "gemini"])]
     pub embedding_mode: String,
 
     /// Ollama host for embeddings
@@ -47,9 +47,18 @@ pub struct BuildArgs {
     #[arg(long, env = "OPENAI_BASE_URL")]
     pub embedding_api_base: Option<String>,
 
-    /// API key for embedding service
+    /// API key for embedding service (OpenAI)
     #[arg(long, env = "OPENAI_API_KEY")]
     pub embedding_api_key: Option<String>,
+
+    /// Google API key for Gemini embeddings
+    #[arg(long, env = "GOOGLE_API_KEY")]
+    pub google_api_key: Option<String>,
+
+    /// Prompt template prefix for document embeddings
+    /// Used for asymmetric models (e.g., "passage: " for E5, BGE models)
+    #[arg(long)]
+    pub embedding_prompt_template: Option<String>,
 
     /// Local model path (for local embedding mode)
     #[cfg(feature = "local-embeddings")]
@@ -135,6 +144,9 @@ pub async fn run(args: BuildArgs, _verbose: bool) -> anyhow::Result<()> {
         "ollama" => EmbeddingMode::Ollama {
             host: args.embedding_host.clone(),
         },
+        "gemini" => EmbeddingMode::Gemini {
+            api_key: args.google_api_key.clone(),
+        },
         #[cfg(feature = "local-embeddings")]
         "local" => EmbeddingMode::Local {
             model_path: args.embedding_model_path.clone(),
@@ -205,10 +217,13 @@ pub async fn run(args: BuildArgs, _verbose: bool) -> anyhow::Result<()> {
     // Process chunks in batches for efficiency
     let batch_size = 100;
     let mut all_embeddings = Vec::with_capacity(chunks.len());
+    let embed_template = args.embedding_prompt_template.as_deref().unwrap_or("");
 
     for batch in chunks.chunks(batch_size) {
         let texts: Vec<&str> = batch.iter().map(|c| c.text.as_str()).collect();
-        let embeddings = embedding_provider.embed(&texts).await?;
+        let embeddings = embedding_provider
+            .embed_with_template(&texts, embed_template)
+            .await?;
         all_embeddings.extend(embeddings);
         progress.inc(batch.len() as u64);
     }

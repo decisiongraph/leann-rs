@@ -18,7 +18,7 @@ pub struct AskArgs {
     pub query: Option<String>,
 
     /// LLM provider
-    #[arg(long, default_value = "ollama", value_parser = ["ollama", "openai", "anthropic"])]
+    #[arg(long, default_value = "ollama", value_parser = ["ollama", "openai", "anthropic", "simulated"])]
     pub llm: String,
 
     /// LLM model name
@@ -85,6 +85,9 @@ pub async fn run(args: AskArgs, _verbose: bool) -> anyhow::Result<()> {
         "ollama" => EmbeddingMode::Ollama {
             host: args.embedding_host.clone(),
         },
+        "gemini" => EmbeddingMode::Gemini {
+            api_key: std::env::var("GOOGLE_API_KEY").ok(),
+        },
         _ => anyhow::bail!("Unknown embedding mode: {}", meta.embedding_mode),
     };
 
@@ -109,6 +112,7 @@ pub async fn run(args: AskArgs, _verbose: bool) -> anyhow::Result<()> {
             api_key: args.api_key.clone(),
             base_url: args.api_base.clone(),
         },
+        "simulated" => LlmType::Simulated,
         _ => anyhow::bail!("Unknown LLM provider: {}", args.llm),
     };
 
@@ -193,35 +197,114 @@ async fn run_interactive(
     top_k: usize,
     complexity: usize,
 ) -> anyhow::Result<()> {
-    use std::io::{self, BufRead, Write};
+    use rustyline::error::ReadlineError;
+    use rustyline::{DefaultEditor, Result as RlResult};
 
-    println!("\nInteractive mode. Type 'quit' or 'exit' to leave.\n");
+    println!("\n🔍 LEANN Interactive Mode");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Commands:");
+    println!("  /help     - Show this help message");
+    println!("  /clear    - Clear conversation history");
+    println!("  /history  - Show command history");
+    println!("  /quit     - Exit interactive mode");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
+    // Setup readline with history
+    let mut rl = DefaultEditor::new()?;
+
+    // Load history from file if it exists
+    let history_path = dirs::home_dir()
+        .map(|h| h.join(".leann").join("history.txt"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".leann_history"));
+
+    if history_path.exists() {
+        let _ = rl.load_history(&history_path);
+    }
+
+    let mut conversation_history: Vec<(String, String)> = Vec::new();
 
     loop {
-        print!("You: ");
-        stdout.flush()?;
+        let readline = rl.readline("You: ");
 
-        let mut input = String::new();
-        stdin.lock().read_line(&mut input)?;
-        let input = input.trim();
+        match readline {
+            Ok(line) => {
+                let input = line.trim();
 
-        if input.is_empty() {
-            continue;
-        }
+                if input.is_empty() {
+                    continue;
+                }
 
-        if input == "quit" || input == "exit" {
-            println!("Goodbye!");
-            break;
-        }
+                // Add to readline history
+                let _ = rl.add_history_entry(input);
 
-        match ask_question(input, embedding_provider, searcher, llm, top_k, complexity).await {
-            Ok(answer) => println!("\nLEANN: {}\n", answer),
-            Err(e) => eprintln!("\nError: {}\n", e),
+                // Handle commands
+                if input.starts_with('/') {
+                    match input {
+                        "/help" | "/h" | "/?" => {
+                            println!("\nCommands:");
+                            println!("  /help     - Show this help message");
+                            println!("  /clear    - Clear conversation history");
+                            println!("  /history  - Show command history");
+                            println!("  /quit     - Exit interactive mode\n");
+                            continue;
+                        }
+                        "/clear" | "/c" => {
+                            conversation_history.clear();
+                            println!("\nConversation history cleared.\n");
+                            continue;
+                        }
+                        "/history" | "/hist" => {
+                            println!("\nConversation history:");
+                            if conversation_history.is_empty() {
+                                println!("  (empty)");
+                            } else {
+                                for (i, (q, _)) in conversation_history.iter().enumerate() {
+                                    println!("  {}. {}", i + 1, q);
+                                }
+                            }
+                            println!();
+                            continue;
+                        }
+                        "/quit" | "/q" | "/exit" => {
+                            println!("\nGoodbye!");
+                            break;
+                        }
+                        _ => {
+                            println!("\nUnknown command: {}. Type /help for available commands.\n", input);
+                            continue;
+                        }
+                    }
+                }
+
+                // Regular question
+                match ask_question(input, embedding_provider, searcher, llm, top_k, complexity).await {
+                    Ok(answer) => {
+                        println!("\nLEANN: {}\n", answer);
+                        conversation_history.push((input.to_string(), answer));
+                    }
+                    Err(e) => eprintln!("\nError: {}\n", e),
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("\nInterrupted. Type /quit to exit.");
+                continue;
+            }
+            Err(ReadlineError::Eof) => {
+                println!("\nGoodbye!");
+                break;
+            }
+            Err(err) => {
+                eprintln!("Error: {:?}", err);
+                break;
+            }
         }
     }
+
+    // Save history
+    if let Some(parent) = history_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = rl.save_history(&history_path);
 
     Ok(())
 }

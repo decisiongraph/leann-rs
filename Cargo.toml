@@ -65,6 +65,9 @@ dirs = "5"
 # Directory traversal with gitignore support
 ignore = "0.4"
 
+# Interactive CLI with readline
+rustyline = "14"
+
 # Regex for text processing
 regex = "1"
 

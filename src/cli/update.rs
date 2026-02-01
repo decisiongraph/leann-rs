@@ -90,6 +90,9 @@ pub async fn run(args: UpdateArgs, _verbose: bool) -> anyhow::Result<()> {
         "ollama" => EmbeddingMode::Ollama {
             host: args.embedding_host.clone(),
         },
+        "gemini" => EmbeddingMode::Gemini {
+            api_key: std::env::var("GOOGLE_API_KEY").ok(),
+        },
         _ => anyhow::bail!("Unknown embedding mode in index: {}", meta.embedding_mode),
     };
 
