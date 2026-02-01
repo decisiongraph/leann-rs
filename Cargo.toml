@@ -1,0 +1,110 @@
+[package]
+name = "leann"
+version = "0.1.0"
+edition = "2021"
+description = "Lightweight vector database for RAG - single binary CLI"
+license = "MIT"
+authors = ["LEANN Contributors"]
+repository = "https://github.com/leann-project/leann"
+keywords = ["vector-database", "rag", "embedding", "search", "ai"]
+categories = ["command-line-utilities", "database-implementations"]
+
+[[bin]]
+name = "leann"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Vector search backends
+usearch = "2"
+
+# HTTP client for API calls
+reqwest = { version = "0.12", features = ["json"] }
+
+# OpenAI API client
+async-openai = "0.28"
+
+# Progress bars
+indicatif = "0.17"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# File handling
+memmap2 = "0.9"
+
+# Tokenization for truncation
+tiktoken-rs = "0.6"
+
+# Async trait support
+async-trait = "0.1"
+
+# Futures utilities
+futures = "0.3"
+
+# UUID for passage IDs
+uuid = { version = "1", features = ["v4"] }
+
+# Home directory lookup
+dirs = "5"
+
+# Directory traversal with gitignore support
+ignore = "0.4"
+
+# Regex for text processing
+regex = "1"
+
+# HTTP server
+axum = { version = "0.7", optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["cors", "trace"], optional = true }
+
+# Text extraction
+pdf-extract = { version = "0.8", optional = true }
+
+# Optional: DiskANN backend (pure Rust)
+diskann-rs = { version = "0.3", optional = true }
+anndists = { version = "0.1", optional = true }
+
+# Optional: Local embeddings with Candle
+candle-core = { version = "0.8", optional = true }
+candle-nn = { version = "0.8", optional = true }
+candle-transformers = { version = "0.8", optional = true }
+hf-hub = { version = "0.4", optional = true }
+tokenizers = { version = "0.21", optional = true }
+
+# Optional: MCP server
+rmcp = { version = "0.14", features = ["server"], optional = true }
+
+[features]
+default = []
+diskann-backend = ["diskann-rs", "anndists"]
+local-embeddings = ["candle-core", "candle-nn", "candle-transformers", "hf-hub", "tokenizers"]
+pdf = ["pdf-extract"]
+server = ["axum", "tower", "tower-http"]
+mcp = ["rmcp"]
+full = ["diskann-backend", "local-embeddings", "pdf", "server", "mcp"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "z"  # Optimize for size
+
+[profile.release-fast]
+inherits = "release"
+opt-level = 3    # Optimize for speed instead of size
