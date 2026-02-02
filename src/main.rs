@@ -4,11 +4,14 @@
 
 mod chunker;
 mod cli;
+mod config;
 mod http;
 mod index;
 mod backend;
 mod embedding;
 mod llm;
+
+pub use config::Config;
 
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};

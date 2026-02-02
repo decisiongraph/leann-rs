@@ -52,7 +52,11 @@ impl Chunker for SimpleChunker {
         let mut chunk_index = 0;
 
         while start < text.len() {
-            let end = (start + char_chunk_size).min(text.len());
+            // Find a valid UTF-8 boundary for end
+            let mut end = (start + char_chunk_size).min(text.len());
+            while end > start && !text.is_char_boundary(end) {
+                end -= 1;
+            }
 
             // Try to break at word boundary
             let chunk_end = if end < text.len() {
@@ -80,12 +84,28 @@ impl Chunker for SimpleChunker {
                 chunk_index += 1;
             }
 
-            // Move start with overlap
-            start = if chunk_end > start + char_overlap {
+            // Ensure we make forward progress to prevent infinite loop
+            if chunk_end <= start {
+                // No progress - force advance by at least 1 char
+                start = text.ceil_char_boundary(start + 1);
+                continue;
+            }
+
+            // Move start with overlap, ensuring valid UTF-8 boundary
+            let mut new_start = if chunk_end > start + char_overlap {
                 chunk_end - char_overlap
             } else {
                 chunk_end
             };
+            // Ensure new_start is at a valid UTF-8 boundary
+            while new_start > 0 && !text.is_char_boundary(new_start) {
+                new_start -= 1;
+            }
+            // Ensure we're making forward progress
+            if new_start <= start {
+                new_start = chunk_end;
+            }
+            start = new_start;
 
             // Prevent infinite loop
             if start >= text.len() || chunk_end >= text.len() {

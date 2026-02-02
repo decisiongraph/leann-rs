@@ -9,11 +9,12 @@ use crate::llm::{LlmProvider, LlmType};
 
 #[derive(Args)]
 pub struct AskArgs {
-    /// Index name to query
-    pub index_name: String,
-
     /// Question to ask (omit for interactive mode)
     pub query: Option<String>,
+
+    /// Index name to query (defaults to current directory name)
+    #[arg(short, long)]
+    pub index: Option<String>,
 
     /// LLM provider
     #[arg(long, default_value = "ollama", value_parser = ["ollama", "openai", "anthropic", "simulated"])]
@@ -36,7 +37,7 @@ pub struct AskArgs {
     pub api_base: Option<String>,
 
     /// Interactive chat mode
-    #[arg(short, long)]
+    #[arg(long)]
     pub interactive: bool,
 
     /// Number of passages to retrieve
@@ -61,8 +62,16 @@ pub struct AskArgs {
 }
 
 pub async fn run(args: AskArgs, _verbose: bool) -> anyhow::Result<()> {
+    // Default to current directory name if no index specified
+    let index_name = args.index.unwrap_or_else(|| {
+        std::env::current_dir()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "index".to_string())
+    });
+
     // Find index
-    let index_dir = find_index(&args.index_name)?;
+    let index_dir = find_index(&index_name)?;
     let meta_path = index_dir.join("documents.leann.meta.json");
     let index_path = index_dir.join("documents.leann");
 
@@ -71,7 +80,7 @@ pub async fn run(args: AskArgs, _verbose: bool) -> anyhow::Result<()> {
 
     info!(
         "Using index '{}' ({} passages)",
-        args.index_name, meta.passage_count
+        index_name, meta.passage_count
     );
 
     // Create embedding provider

@@ -9,6 +9,7 @@ mod react;
 mod serve;
 mod update;
 mod prune;
+mod config_cmd;
 #[cfg(feature = "mcp")]
 mod mcp;
 
@@ -23,6 +24,7 @@ pub use react::ReactArgs;
 pub use serve::ServeArgs;
 pub use update::UpdateArgs;
 pub use prune::PruneArgs;
+pub use config_cmd::ConfigArgs;
 #[cfg(feature = "mcp")]
 pub use mcp::McpArgs;
 
@@ -73,6 +75,9 @@ pub enum Commands {
     /// Prune embeddings to enable recomputation mode
     Prune(PruneArgs),
 
+    /// Manage configuration
+    Config(ConfigArgs),
+
     /// Start MCP server for Claude Code integration
     #[cfg(feature = "mcp")]
     Mcp(McpArgs),
@@ -90,6 +95,7 @@ impl Cli {
             Commands::List(args) => list::run(args).await,
             Commands::Remove(args) => remove::run(args).await,
             Commands::Prune(args) => prune::run(args).await,
+            Commands::Config(args) => config_cmd::run(args).await,
             #[cfg(feature = "mcp")]
             Commands::Mcp(args) => mcp::run(args, self.verbose).await,
         }

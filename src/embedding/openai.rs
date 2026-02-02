@@ -35,21 +35,42 @@ impl OpenAIEmbedding {
 
         let client = Client::with_config(config);
 
-        // Determine dimensions based on model name
+        // Determine dimensions based on model name (will be verified/updated on first embed call)
         let dimensions = match model_name.as_str() {
             "text-embedding-3-small" => 1536,
             "text-embedding-3-large" => 3072,
             "text-embedding-ada-002" => 1536,
-            _ => 1536, // Default
+            _ => 0, // Unknown - will auto-detect on first call
         };
 
-        info!("OpenAI embedding provider: {} ({} dims)", model_name, dimensions);
+        info!("OpenAI embedding provider: {} ({} dims)", model_name,
+              if dimensions == 0 { "auto".to_string() } else { dimensions.to_string() });
 
         Ok(Self {
             client,
             model_name,
             dimensions,
         })
+    }
+
+    /// Create a new OpenAI embedding provider and detect dimensions
+    pub async fn new_with_detection(
+        model_name: String,
+        api_key: Option<String>,
+        base_url: Option<String>,
+    ) -> anyhow::Result<Self> {
+        let mut provider = Self::new(model_name, api_key, base_url)?;
+
+        // If dimensions unknown, detect by doing a test embedding
+        if provider.dimensions == 0 {
+            let test = provider.embed(&["test"]).await?;
+            if let Some(embedding) = test.first() {
+                provider.dimensions = embedding.len();
+                info!("Auto-detected embedding dimensions: {}", provider.dimensions);
+            }
+        }
+
+        Ok(provider)
     }
 
     /// Get dimensions

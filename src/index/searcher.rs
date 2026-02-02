@@ -125,9 +125,9 @@ impl IndexSearcher {
         query_embedding: &[f32],
         opts: &SearchOptions,
     ) -> anyhow::Result<Vec<SearchResult>> {
-        // Fetch more results if filtering, to ensure we have enough after filtering
-        let fetch_k = if opts.filter.is_some() {
-            opts.top_k * 3
+        // Fetch more results if filtering or hybrid, to ensure we have enough after processing
+        let fetch_k = if opts.filter.is_some() || opts.hybrid {
+            opts.top_k * 5 // More for hybrid to get diverse results
         } else {
             opts.top_k
         };
@@ -149,6 +149,20 @@ impl IndexSearcher {
                 let all_texts = self.get_all_texts()?;
                 let scorer = Bm25Scorer::build(&all_texts);
                 let bm25_scores = scorer.score_query(query_text);
+
+                // Get top BM25 results that might not be in vector results
+                let bm25_top = scorer.search(query_text, fetch_k);
+
+                // Add BM25 top results to vector results if not already present
+                let vector_indices: std::collections::HashSet<usize> =
+                    vector_results.iter().map(|(idx, _)| *idx).collect();
+
+                for (idx, _bm25_score) in bm25_top {
+                    if !vector_indices.contains(&idx) {
+                        // Add with a low vector score (will be boosted by BM25)
+                        vector_results.push((idx, 0.0));
+                    }
+                }
 
                 vector_results = hybrid_rerank(&vector_results, &bm25_scores, opts.hybrid_alpha);
             }
@@ -205,6 +219,28 @@ impl IndexSearcher {
                 Err(_) => texts.push(String::new()),
             }
         }
+
+        Ok(texts)
+    }
+
+    /// BM25-only search for query expansion
+    /// Returns passage texts of top matches
+    pub fn bm25_search(&self, query: &str, top_k: usize) -> anyhow::Result<Vec<String>> {
+        let all_texts = self.get_all_texts()?;
+        let scorer = Bm25Scorer::build(&all_texts);
+        let results = scorer.search(query, top_k);
+
+        let texts: Vec<String> = results
+            .iter()
+            .filter_map(|(idx, _)| {
+                if *idx < self.id_map.len() {
+                    let id = &self.id_map[*idx];
+                    self.passages.get(id).ok().map(|p| p.text)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         Ok(texts)
     }

@@ -3,9 +3,12 @@
 mod openai;
 mod ollama;
 mod gemini;
+mod models;
 
 #[cfg(feature = "local-embeddings")]
 mod candle;
+
+pub use models::{get_model_config, ModelConfig};
 
 use tracing::info;
 
@@ -48,11 +51,11 @@ impl EmbeddingProvider {
     pub async fn new(model_name: String, mode: EmbeddingMode) -> anyhow::Result<Self> {
         let (inner, dimensions) = match mode {
             EmbeddingMode::OpenAI { api_key, base_url } => {
-                let provider = openai::OpenAIEmbedding::new(
+                let provider = openai::OpenAIEmbedding::new_with_detection(
                     model_name.clone(),
                     api_key,
                     base_url,
-                )?;
+                ).await?;
                 let dims = provider.dimensions();
                 (EmbeddingProviderInner::OpenAI(provider), dims)
             }
